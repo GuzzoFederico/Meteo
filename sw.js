@@ -1,6 +1,6 @@
 // https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers
 
-const urlsToCache = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/meteo.svg'];
+const urlsToCache = ['/Meteo/', '/Meteo/index.html', '/Meteo/style.css', '/Meteo/app.js', '/Meteo/manifest.json', '/Meteo/meteo.svg'];
 
 self.addEventListener('install', event => {
     event.waitUntil(caches.open('meteo').then(cache => cache.addAll(urlsToCache)));

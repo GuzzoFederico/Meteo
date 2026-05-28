@@ -386,7 +386,7 @@ createApp({
         }
 
         if ('serviceWorker' in navigator)
-            navigator.serviceWorker.register('sw.js');
+            navigator.serviceWorker.register('/Meteo/sw.js');
 
         return {
             city, weather, forecast, loading,
