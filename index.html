@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html class="theme-dark">
+   <head>
+      <title>Meteo</title>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+      <link rel="stylesheet" type="text/css" href="style.css">
+      <link rel="icon" type="image/svg+xml" href="meteo.svg">
+      <link rel="manifest" href="manifest.json">
+   </head>
+   <body>
+      <div id="vanta-bg">
+         <div id="app">
+            <div class="card">
+               <Transition name="fade">
+                  <div v-if="isOffline" class="offline-banner">
+                     <i class="fa-solid fa-wifi-slash"></i>
+                     Sei offline — i dati non possono essere aggiornati
+                  </div>
+               </Transition>
+               <div class="search-row">
+                  <div class="search-wrap">
+                     <div class="search" :class="{ 'search--disabled': isOffline }">
+                        <i class="fa-solid fa-location-dot search-icon"></i>
+                        <input v-model="city"
+                        @keyup.enter="searchWeather"
+                        @input="onCityInput"
+                        @blur="hideSuggestions"
+                        @focus="showSuggestions = suggestions.length > 0"
+                        placeholder="Cerca una città…"
+                        autocomplete="off"
+                        :disabled="isOffline">
+                        <button @click="searchWeather" aria-label="Cerca" :disabled="isOffline">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                     </div>
+                     <Transition name="dropdown">
+                        <div v-if="showSuggestions && suggestions.length" class="suggestions">
+                           <div v-for="s in suggestions"
+                              :key="s.display"
+                              class="suggestion-item"
+                              @mousedown.prevent
+                              @click="selectSuggestion(s)">
+                              <i class="fa-solid fa-location-dot sug-icon"></i>
+                              <div class="sug-text">
+                                 <span class="sug-name">{{ s.name }}</span>
+                                 <span class="sug-sub" v-if="s.place || s.country">{{ [s.place, s.country].filter(Boolean).join(' · ') }}</span>
+                              </div>
+                           </div>
+                        </div>
+                     </Transition>
+                  </div>
+                  <button class="unit-toggle" @click="toggleUnit" :title="'Passa a ' + (isCelsius ? '°F' : '°C')">
+                  {{ unitLabel }}
+                  </button>
+               </div>
+               <Transition name="fade">
+                  <div v-if="error || loading" class="state-msg">
+                     <div v-if="error" class="error-msg">
+                        <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
+                     </div>
+                     <div v-else-if="loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Caricamento…
+                     </div>
+                  </div>
+               </Transition>
+               <Transition name="slide-up">
+                  <div v-if="weather" class="weather">
+                     <div class="city-name">
+                        {{ weather.name }}
+                        <span class="country-badge">{{ weather.country }}</span>
+                     </div>
+                     <div
+                        class="weather-icon-wrap today-clickable"
+                        @click="selectDay(weather.todayDate, 'Oggi')"
+                        title="Orario">
+                        <i :class="'fa-solid ' + weather.icon + ' weather-icon'"></i>
+                        <span class="today-hint">Orario <i class="fa-solid fa-chevron-down"></i></span>
+                     </div>
+                     <div class="temp-row">
+                        <span class="temp">{{ disp(weather.temperatureC) }}°</span>
+                        <div class="temp-meta">
+                           <span class="condition">{{ weather.label }}</span>
+                           <div class="datas">
+                              <span class="data"><i class="fa-solid fa-wind"></i> {{ weather.wind }} km/h</span>
+                              <span class="data"><i class="fa-solid fa-droplet"></i> {{ weather.humidity }}%</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               </Transition>
+               <Transition name="slide-up">
+                  <div v-if="forecast.length" class="forecast">
+                     <div class="forecast-label">Prossimi 6 giorni</div>
+                     <div class="forecast-grid">
+                        <div v-for="day in forecast"
+                           :key="day.day"
+                           class="forecast-day"
+                           @click="selectDay(day.date, day.day)"
+                           title="Vedi ore del giorno">
+                           <span class="f-day">{{ day.day }}</span>
+                           <i :class="'fa-solid ' + day.icon + ' f-icon'"></i>
+                           <span class="f-max">{{ disp(day.maxC) }}°</span>
+                           <span class="f-min">{{ disp(day.minC) }}°</span>
+                           <div class="temp-bar-track">
+                              <div class="temp-bar-fill" :style="barStyle(day)"></div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               </Transition>
+               <Transition name="hourly-slide">
+                  <div v-if="showHourly && hourlyData.length" class="hourly-panel">
+                     <div class="hourly-header">
+                        <span class="hourly-title">
+                        <i class="fa-solid fa-clock"></i> {{ selectedDayLabel }}
+                        </span>
+                        <button class="hourly-close" @click="closeHourly" aria-label="Chiudi">
+                        <i class="fa-solid fa-xmark"></i>
+                        </button>
+                     </div>
+                     <svg class="sparkline" viewBox="0 0 336 36">
+                        <polyline :points="sparklinePoints"
+                           fill="none"
+                           stroke="url(#sparkGrad)"
+                           stroke-width="2"
+                           stroke-linejoin="round"
+                           stroke-linecap="round"/>
+                        <defs>
+                           <linearGradient id="sparkGrad" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.5"/>
+                              <stop offset="50%" stop-color="#60a5fa"/>
+                              <stop offset="100%" stop-color="#f472b6"/>
+                           </linearGradient>
+                        </defs>
+                     </svg>
+                     <div class="hourly-scroll" ref="hourlyScrollEl">
+                        <div v-for="h in hourlyData"
+                           :key="h.hour"
+                           class="hourly-slot"
+                           :class="{ 'hourly-slot--now': h.isCurrent }">
+                           <span class="h-time" :class="{ 'h-time--now': h.isCurrent }">
+                           {{ h.isCurrent ? 'ora' : h.hour }}
+                           </span>
+                           <i :class="'fa-solid ' + h.icon + ' h-icon'"></i>
+                           <span class="h-temp">{{ disp(h.tempC) }}°</span>
+                        </div>
+                     </div>
+                  </div>
+               </Transition>
+            </div>
+         </div>
+      </div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.globe.min.js"></script>
+      <script type="module" src="app.js"></script>
+   </body>
+</html>
